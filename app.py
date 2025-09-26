@@ -16,6 +16,7 @@ from model import KeyPointClassifier
 from model import PointHistoryClassifier
 
 import pyautogui
+import time
 
 
 
@@ -66,7 +67,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=2,
+        max_num_hands=1,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -558,7 +559,7 @@ def draw_info(image, fps, mode, number):
     return image
 
 def move_cursor(position, id=None):
-    global cursor_history, dragging
+    global cursor_history, dragging, drag_start_time
 
     screen_width, screen_height = pyautogui.size()
 
@@ -580,13 +581,26 @@ def move_cursor(position, id=None):
 
     # Handle drag
     if id == 1 and not dragging:
-        pyautogui.mouseDown(button='left')
-        dragging = True
-        print("click")
-    elif id != 1 and dragging:
-        pyautogui.mouseUp(button='left')
+        if drag_start_time is None:
+            drag_start_time = time.time()
+        elapsed = time.time() - drag_start_time
+
+        if elapsed >= 0.5 and not dragging:
+            pyautogui.mouseDown(button='left')
+            dragging = True
+
+    else:  # id != 1
+        if drag_start_time is not None:
+            elapsed = time.time() - drag_start_time
+
+            if elapsed < 0.5:
+                pyautogui.click()  # short tap → click
+            elif dragging:
+                pyautogui.mouseUp(button='left')  # release after drag
+
+        # Reset
+        drag_start_time = None
         dragging = False
-        print("release")
 
 
 if __name__ == '__main__':
@@ -601,6 +615,7 @@ if __name__ == '__main__':
     PALM_MAX_X -= PADDING
     PALM_MAX_Y -= PADDING
     # Track if dragging is active
+    drag_start_time = None
     dragging = False
 
     main()
