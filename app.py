@@ -15,6 +15,9 @@ from utils import CvFpsCalc
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
 
+import pyautogui
+
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -39,9 +42,11 @@ def get_args():
 
 
 def main():
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
     # Argument parsing #################################################################
     args = get_args()
-
+     
     cap_device = args.device
     cap_width = args.width
     cap_height = args.height
@@ -61,7 +66,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -130,6 +135,18 @@ def main():
                 # Landmark calculation
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
+                palm_position = landmark_list[0]  # [x, y] in pixels
+
+                # Update min/max
+                min_x = min(min_x, palm_position[0])
+                min_y = min(min_y, palm_position[1])
+                max_x = max(max_x, palm_position[0])
+                max_y = max(max_y, palm_position[1])
+                
+                # Print live values (optional)
+                print(f"Index finger tip: x={palm_position[0]}, y={palm_position[1]} | "
+                      f"Min: ({min_x}, {min_y}), Max: ({max_x}, {max_y})")
+
                 # Conversion to relative coordinates / normalized coordinates
                 pre_processed_landmark_list = pre_process_landmark(
                     landmark_list)
@@ -141,7 +158,7 @@ def main():
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 2:  # Point gesture
+                if hand_sign_id == "Not applicable":  # Point gesture
                     point_history.append(landmark_list[8])
                 else:
                     point_history.append([0, 0])
@@ -157,6 +174,8 @@ def main():
                 finger_gesture_history.append(finger_gesture_id)
                 most_common_fg_id = Counter(
                     finger_gesture_history).most_common()
+
+                move_cursor(palm_position, hand_sign_id)
 
                 # Drawing part
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
@@ -538,6 +557,48 @@ def draw_info(image, fps, mode, number):
                        cv.LINE_AA)
     return image
 
+def move_cursor(position, id=None):
+    global cursor_history, dragging
+
+    screen_width, screen_height = pyautogui.size()
+
+    # Map palm coords to full screen using min/max and padding
+    screen_x = (position[0] - PALM_MIN_X) / (PALM_MAX_X - PALM_MIN_X) * screen_width
+    screen_y = (position[1] - PALM_MIN_Y) / (PALM_MAX_Y - PALM_MIN_Y) * screen_height
+
+    # Clamp to screen bounds
+    screen_x = max(0, min(screen_x, screen_width - 1))
+    screen_y = max(0, min(screen_y, screen_height - 1))
+
+    # Add to history for smoothing
+    cursor_history.append((screen_x, screen_y))
+
+    # Smooth cursor by averaging last few positions
+    avg_x = sum(pos[0] for pos in cursor_history) / len(cursor_history)
+    avg_y = sum(pos[1] for pos in cursor_history) / len(cursor_history)
+    pyautogui.moveTo(avg_x, avg_y, duration=0.05)
+
+    # Handle drag
+    if id == 1 and not dragging:
+        pyautogui.mouseDown(button='left')
+        dragging = True
+    elif id != 1 and dragging:
+        pyautogui.mouseUp(button='left')
+        dragging = False
+
 
 if __name__ == '__main__':
+    cursor_history = deque(maxlen=5)
+
+# Observed palm min/max for mapping
+    PALM_MIN_X, PALM_MIN_Y = -1, 37
+    PALM_MAX_X, PALM_MAX_Y = 799, 599
+    PADDING = 50
+    PALM_MIN_X += PADDING
+    PALM_MIN_Y += PADDING
+    PALM_MAX_X -= PADDING
+    PALM_MAX_Y -= PADDING
+    # Track if dragging is active
+    dragging = False
+
     main()
