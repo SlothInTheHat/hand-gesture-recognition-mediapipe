@@ -144,8 +144,8 @@ def main():
                 max_y = max(max_y, palm_position[1])
                 
                 # Print live values (optional)
-                print(f"Index finger tip: x={palm_position[0]}, y={palm_position[1]} | "
-                      f"Min: ({min_x}, {min_y}), Max: ({max_x}, {max_y})")
+                # print(f"Index finger tip: x={palm_position[0]}, y={palm_position[1]} | "
+                #       f"Min: ({min_x}, {min_y}), Max: ({max_x}, {max_y})")
 
                 # Conversion to relative coordinates / normalized coordinates
                 pre_processed_landmark_list = pre_process_landmark(
@@ -574,17 +574,19 @@ def move_cursor(position, id=None):
     cursor_history.append((screen_x, screen_y))
 
     # Smooth cursor by averaging last few positions
-    avg_x = sum(pos[0] for pos in cursor_history) / len(cursor_history)
-    avg_y = sum(pos[1] for pos in cursor_history) / len(cursor_history)
-    pyautogui.moveTo(avg_x, avg_y, duration=0.05)
+    avg_x = int(sum(pos[0] for pos in cursor_history) / len(cursor_history))
+    avg_y = int(sum(pos[1] for pos in cursor_history) / len(cursor_history))
+    pyautogui.moveTo(avg_x, avg_y, duration=0)
 
     # Handle drag
     if id == 1 and not dragging:
         pyautogui.mouseDown(button='left')
         dragging = True
+        print("click")
     elif id != 1 and dragging:
         pyautogui.mouseUp(button='left')
         dragging = False
+        print("release")
 
 
 if __name__ == '__main__':
